@@ -11,7 +11,7 @@ import (
 
 // TestPublicAPI 黑盒冒烟测试：覆盖根包全部转发函数、类型别名与常量。
 func TestPublicAPI(t *testing.T) {
-	if mqx.Version != "v0.2.0" {
+	if mqx.Version != "v0.3.0" {
 		t.Fatalf("Version 不符：%s", mqx.Version)
 	}
 	_ = []mqx.QueueFullPolicy{mqx.QueueFullBlock, mqx.QueueFullDrop, mqx.QueueFullReject}
@@ -71,6 +71,8 @@ func TestPublicAPI(t *testing.T) {
 	if sub.Group() != "g" {
 		t.Fatal("Group 不符")
 	}
+	sub.Pause()
+	sub.Resume()
 	if err := mq.Replay(context.Background(), "orders.dlq"); err != nil {
 		t.Fatalf("Replay 失败：%v", err)
 	}
@@ -79,6 +81,9 @@ func TestPublicAPI(t *testing.T) {
 	}
 	if err := sub.Stop(); err != nil {
 		t.Fatalf("Stop 失败：%v", err)
+	}
+	if err := mq.DeleteTopic("orders"); err != nil {
+		t.Fatalf("DeleteTopic 失败：%v", err)
 	}
 	if err := mq.Shutdown(context.Background()); err != nil {
 		t.Fatalf("Shutdown 失败：%v", err)

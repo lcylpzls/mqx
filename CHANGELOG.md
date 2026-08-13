@@ -4,6 +4,24 @@
 
 ## [v0.2.0] - 2026-08-14
 
+## [v0.3.0] - 2026-08-14
+
+### 新增
+
+- `Subscription.Pause/Resume`：暂停期间消息在分区内排队（在途消息
+  继续处理），恢复后自动续消费；多组互相独立；
+- `MQ.DeleteTopic`：停止主题全部订阅并移除路由，之后投递/订阅/
+  统计/重放返回 `ErrTopicNotFound`；
+- 高级示例 `examples/advanced`：writer/audit 双组消费、暂停削峰
+  与主题统计演示。
+
+### 质量
+
+- 根包与 internal/core 覆盖率 100%；race / vet / staticcheck /
+  fuzz / govulncheck 全绿。
+
+## [v0.2.0] - 2026-08-14
+
 ### 新增
 
 - `TopicConfig.MaxMessageBytes`：消息体大小上限（默认 1 MiB），

@@ -1,6 +1,6 @@
 # mqx API 定版草案
 
-> 版本：v0.2.0 · 已实现签名与代码一致。
+> 版本：v0.3.0 · 已实现签名与代码一致。
 
 ## 1. 公开类型
 
@@ -43,6 +43,7 @@ func New(opts ...Option) (*MQ, error)
 func (m *MQ) CreateTopic(name string, cfg TopicConfig) (*Topic, error)
 func (m *MQ) Produce(ctx context.Context, topic, key string, body []byte) error
 func (m *MQ) Subscribe(ctx context.Context, topic, group string, consumers int, h Handler) (*Subscription, error)
+func (m *MQ) DeleteTopic(name string) error
 func (m *MQ) Stats(topic string) (TopicStats, error)
 func (m *MQ) Shutdown(ctx context.Context) error
 ```
@@ -68,6 +69,9 @@ type TopicStats struct {
   多个组，组间独立；
 - handler 返回 nil = 确认；error = 重试；超时未返回 = 重投；
 - `Shutdown`：幂等，停止投递与消费并等待 in-flight 落定。
+- `Pause/Resume`：暂停期间消息在分区内排队，多组互相独立；
+- `DeleteTopic`：停止该主题全部订阅并移除路由，之后投递/订阅/
+  统计/重放均返回 `ErrTopicNotFound`。
 
 ## 3. 订阅对象
 
@@ -75,6 +79,8 @@ type TopicStats struct {
 type Subscription struct{ /* 不可直接构造 */ }
 func (s *Subscription) Group() string
 func (s *Subscription) Stop() error // 停止该组消费（保留队列）
+func (s *Subscription) Pause()      // 暂停消费（在途消息继续，后续消息排队）
+func (s *Subscription) Resume()     // 恢复消费
 ```
 
 ## 4. 默认值

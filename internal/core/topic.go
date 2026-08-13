@@ -16,6 +16,8 @@ type Topic struct {
 	cfg        TopicConfig
 	partitions []*partition
 	dlq        *dlqQueue
+	subsMu     sync.Mutex
+	subs       map[*Subscription]struct{}
 }
 
 // partition 是主题下的一个顺序分区。

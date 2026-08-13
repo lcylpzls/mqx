@@ -29,6 +29,7 @@ type loop struct {
 	handler   Handler
 	cursor    int
 	stopCh    chan struct{}
+	pause     *pauseState
 }
 
 // run 消费分区队列直到停止。
@@ -40,6 +41,17 @@ func (l *loop) run() {
 		p.mu.Unlock()
 	}()
 	for {
+		if l.pause != nil && l.pause.isPaused() {
+			ch := l.pause.channel()
+			select {
+			case <-ch:
+			case <-l.stopCh:
+				return
+			case <-l.topic.mq.stopCh:
+				return
+			}
+			continue
+		}
 		p.mu.Lock()
 		if l.cursor < len(p.msgs) {
 			msg := p.msgs[l.cursor]

@@ -137,6 +137,7 @@ type dlqLoop struct {
 	cursor   int
 	inFlight int
 	stopCh   chan struct{}
+	pause    *pauseState
 }
 
 // run 消费死信队列直到停止。
@@ -148,6 +149,17 @@ func (l *dlqLoop) run() {
 		d.mu.Unlock()
 	}()
 	for {
+		if l.pause != nil && l.pause.isPaused() {
+			ch := l.pause.channel()
+			select {
+			case <-ch:
+			case <-l.stopCh:
+				return
+			case <-l.topic.mq.stopCh:
+				return
+			}
+			continue
+		}
 		d.mu.Lock()
 		if l.cursor < len(d.msgs) {
 			msg := d.msgs[l.cursor]

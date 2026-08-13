@@ -57,6 +57,7 @@ func (m *MQ) CreateTopic(name string, cfg TopicConfig) (*Topic, error) {
 		return nil, ErrTopicExists
 	}
 	t := &Topic{mq: m, name: name, cfg: cfg}
+	t.subs = make(map[*Subscription]struct{})
 	t.partitions = make([]*partition, cfg.Partitions)
 	for i := range t.partitions {
 		t.partitions[i] = newPartition(t, i)
@@ -149,6 +150,33 @@ func (m *MQ) Replay(ctx context.Context, dlqName string, ids ...string) error {
 	return t.dlq.replay(ctx, ids)
 }
 
+// DeleteTopic 删除主题并停止其全部订阅（幂等删除后返回 ErrTopicNotFound）。
+func (m *MQ) DeleteTopic(name string) error {
+	m.mu.Lock()
+	t, ok := m.topics[name]
+	if !ok {
+		m.mu.Unlock()
+		return ErrTopicNotFound
+	}
+	delete(m.topics, name)
+	m.mu.Unlock()
+	t.stopSubs()
+	return nil
+}
+
+// stopSubs 停止主题的全部订阅并等待退出。
+func (t *Topic) stopSubs() {
+	t.subsMu.Lock()
+	subs := make([]*Subscription, 0, len(t.subs))
+	for s := range t.subs {
+		subs = append(subs, s)
+	}
+	t.subsMu.Unlock()
+	for _, s := range subs {
+		_ = s.Stop()
+	}
+}
+
 // Stats 返回主题统计快照（队列深度、累计消费与死信水位）。
 func (m *MQ) Stats(topicName string) (TopicStats, error) {
 	t := m.topic(topicName)
@@ -220,10 +248,15 @@ func (m *MQ) topic(name string) *Topic {
 func (m *MQ) subscribeTopic(t *Topic, group string, consumers int, h Handler) (*Subscription, error) {
 	sub := &Subscription{
 		mq:    m,
+		t:     t,
 		topic: t.name,
 		group: group,
 		stop:  make(chan struct{}),
+		pause: newPauseState(),
 	}
+	t.subsMu.Lock()
+	t.subs[sub] = struct{}{}
+	t.subsMu.Unlock()
 	for _, p := range t.partitions {
 		l := &loop{
 			topic:     t,
@@ -231,6 +264,7 @@ func (m *MQ) subscribeTopic(t *Topic, group string, consumers int, h Handler) (*
 			group:     group,
 			handler:   h,
 			stopCh:    sub.stop,
+			pause:     sub.pause,
 		}
 		p.mu.Lock()
 		p.loops[l] = struct{}{}
@@ -254,16 +288,22 @@ func (m *MQ) subscribeTopic(t *Topic, group string, consumers int, h Handler) (*
 func (m *MQ) subscribeDLQ(t *Topic, dlqName, group string, consumers int, h Handler) (*Subscription, error) {
 	sub := &Subscription{
 		mq:    m,
+		t:     t,
 		topic: dlqName,
 		group: group,
 		stop:  make(chan struct{}),
+		pause: newPauseState(),
 	}
+	t.subsMu.Lock()
+	t.subs[sub] = struct{}{}
+	t.subsMu.Unlock()
 	l := &dlqLoop{
 		topic:    t,
 		group:    group,
 		handler:  h,
 		inFlight: -1,
 		stopCh:   sub.stop,
+		pause:    sub.pause,
 	}
 	t.dlq.mu.Lock()
 	t.dlq.loops[l] = struct{}{}
@@ -293,11 +333,13 @@ func (t *Topic) moveToDLQ(msg *Message, cause error) {
 // Subscription 是一次消费者组订阅。
 type Subscription struct {
 	mq       *MQ
+	t        *Topic
 	topic    string
 	group    string
 	stop     chan struct{}
 	stopOnce sync.Once
 	wg       sync.WaitGroup
+	pause    *pauseState
 }
 
 // Group 返回消费者组名。
@@ -307,7 +349,22 @@ func (s *Subscription) Group() string {
 
 // Stop 停止该组消费（队列与消息保留，幂等）。
 func (s *Subscription) Stop() error {
-	s.stopOnce.Do(func() { close(s.stop) })
+	s.stopOnce.Do(func() {
+		close(s.stop)
+		s.t.subsMu.Lock()
+		delete(s.t.subs, s)
+		s.t.subsMu.Unlock()
+	})
 	s.wg.Wait()
 	return nil
+}
+
+// Pause 暂停该组消费（在途消息继续处理，后续消息排队等待）。
+func (s *Subscription) Pause() {
+	s.pause.Pause()
+}
+
+// Resume 恢复该组消费并唤醒所有分区循环。
+func (s *Subscription) Resume() {
+	s.pause.Resume()
 }
