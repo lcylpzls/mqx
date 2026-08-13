@@ -15,6 +15,8 @@ type dlqQueue struct {
 	msgs   []*Message
 	loops  map[*dlqLoop]struct{}
 	notify chan struct{}
+	// delivered 累计已消费死信数（压缩不清零）。
+	delivered int64
 }
 
 // newDLQ 创建死信队列。
@@ -169,6 +171,7 @@ func (l *dlqLoop) run() {
 					logx.Any("error", delivery.Err))
 			}
 			l.cursor++
+			d.delivered++
 			d.compactLocked()
 			d.mu.Unlock()
 			continue

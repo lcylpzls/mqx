@@ -78,6 +78,9 @@ func (m *MQ) Produce(ctx context.Context, topicName, key string, body []byte) er
 	if m.shuttingDown.Load() {
 		return ErrShuttingDown
 	}
+	if len(body) > t.cfg.MaxMessageBytes {
+		return ErrMessageTooLarge
+	}
 	id, err := m.cfg.idgen(messageIDBytes)
 	if err != nil {
 		return errx.Wrap(err, errx.KindUnavailable, CodeIDGenerateFailed, "消息 ID 生成失败")
@@ -144,6 +147,44 @@ func (m *MQ) Replay(ctx context.Context, dlqName string, ids ...string) error {
 		return ErrTopicNotFound
 	}
 	return t.dlq.replay(ctx, ids)
+}
+
+// Stats 返回主题统计快照（队列深度、累计消费与死信水位）。
+func (m *MQ) Stats(topicName string) (TopicStats, error) {
+	t := m.topic(topicName)
+	if t == nil {
+		return TopicStats{}, ErrTopicNotFound
+	}
+	stats := TopicStats{Name: topicName, Partitions: len(t.partitions)}
+	for _, p := range t.partitions {
+		p.mu.Lock()
+		stats.Pending += len(p.msgs) - p.minCursorLocked()
+		stats.Consumed += p.delivered
+		p.mu.Unlock()
+	}
+	if t.dlq != nil {
+		t.dlq.mu.Lock()
+		stats.DLQPending = len(t.dlq.msgs) - t.dlq.start
+		stats.DLQConsumed = t.dlq.delivered
+		t.dlq.mu.Unlock()
+	}
+	return stats, nil
+}
+
+// TopicStats 是主题统计快照。
+type TopicStats struct {
+	// Name 主题名。
+	Name string
+	// Partitions 分区数。
+	Partitions int
+	// Pending 待处理消息数（未被任意组消费）。
+	Pending int
+	// Consumed 已消费消息数（当前在内存中的累计游标）。
+	Consumed int64
+	// DLQPending 死信队列待处理数。
+	DLQPending int
+	// DLQConsumed 死信队列已消费数。
+	DLQConsumed int64
 }
 
 // Shutdown 停止投递与消费并等待在途消息落定（幂等）。

@@ -27,6 +27,8 @@ type partition struct {
 	msgs   []*Message
 	loops  map[*loop]struct{}
 	notify chan struct{}
+	// delivered 累计已消费消息数（压缩不清零）。
+	delivered int64
 }
 
 // newPartition 创建分区。

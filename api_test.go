@@ -11,7 +11,7 @@ import (
 
 // TestPublicAPI 黑盒冒烟测试：覆盖根包全部转发函数、类型别名与常量。
 func TestPublicAPI(t *testing.T) {
-	if mqx.Version != "v0.1.0" {
+	if mqx.Version != "v0.2.0" {
 		t.Fatalf("Version 不符：%s", mqx.Version)
 	}
 	_ = []mqx.QueueFullPolicy{mqx.QueueFullBlock, mqx.QueueFullDrop, mqx.QueueFullReject}
@@ -25,10 +25,13 @@ func TestPublicAPI(t *testing.T) {
 	var _ mqx.TraceAttr
 	var _ mqx.TraceHook
 	var _ mqx.Store
+	var _ mqx.TopicStats
 	var _ mqx.Config
 	var _ mqx.Option
 	_ = mqx.CodeInvalidConfig
+	_ = mqx.CodeMessageTooLarge
 	_ = mqx.ErrTopicNotFound
+	_ = mqx.ErrMessageTooLarge
 
 	mq, err := mqx.New(
 		mqx.WithLogger(nil),

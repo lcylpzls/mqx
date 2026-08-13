@@ -65,6 +65,19 @@ func TestProduceErrors(t *testing.T) {
 	}
 }
 
+// TestProduceTooLarge 覆盖消息体大小上限。
+func TestProduceTooLarge(t *testing.T) {
+	m := newTestMQ(t)
+	cfg := smallTopic()
+	cfg.MaxMessageBytes = 4
+	_, err := m.CreateTopic("orders", cfg)
+	testx.RequireNoError(t, err)
+	if err := m.Produce(context.Background(), "orders", "k", []byte("12345")); !errx.Is(err, CodeMessageTooLarge) {
+		t.Fatalf("超限消息应报错：%v", err)
+	}
+	testx.RequireNoError(t, m.Produce(context.Background(), "orders", "k", []byte("1234")))
+}
+
 // TestQueueFullPolicies 覆盖 Drop/Reject 与 Block 分支。
 func TestQueueFullPolicies(t *testing.T) {
 	for _, policy := range []QueueFullPolicy{QueueFullDrop, QueueFullReject} {

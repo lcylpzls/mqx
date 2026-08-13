@@ -19,6 +19,7 @@ const (
 	CodeProcessTimeout   = core.CodeProcessTimeout
 	CodeRetryExhausted   = core.CodeRetryExhausted
 	CodeIDGenerateFailed = core.CodeIDGenerateFailed
+	CodeMessageTooLarge  = core.CodeMessageTooLarge
 )
 
 var (
@@ -30,6 +31,7 @@ var (
 	ErrProcessTimeout   = core.ErrProcessTimeout
 	ErrRetryExhausted   = core.ErrRetryExhausted
 	ErrIDGenerateFailed = core.ErrIDGenerateFailed
+	ErrMessageTooLarge  = core.ErrMessageTooLarge
 )
 
 type (
@@ -46,6 +48,7 @@ type (
 	MQ              = core.MQ
 	Topic           = core.Topic
 	Subscription    = core.Subscription
+	TopicStats      = core.TopicStats
 )
 
 const (

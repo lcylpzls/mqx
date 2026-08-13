@@ -1,6 +1,6 @@
 # mqx API 定版草案
 
-> 版本：v0.1.0 · 已实现签名与代码一致。
+> 版本：v0.2.0 · 已实现签名与代码一致。
 
 ## 1. 公开类型
 
@@ -12,6 +12,7 @@ type TopicConfig struct {
 	RetryDelay      time.Duration   // 首次重试退避，默认 1s，指数增长
 	ProcessTimeout  time.Duration   // 单条消息处理超时，默认 30s
 	Partitions      int             // 分区数（0 = 默认 16，创建后固定）
+	MaxMessageBytes int             // 消息体大小上限（默认 1 MiB）
 	DisableDLQ      bool            // 默认 false（即默认启用 DLQ）
 }
 
@@ -42,13 +43,26 @@ func New(opts ...Option) (*MQ, error)
 func (m *MQ) CreateTopic(name string, cfg TopicConfig) (*Topic, error)
 func (m *MQ) Produce(ctx context.Context, topic, key string, body []byte) error
 func (m *MQ) Subscribe(ctx context.Context, topic, group string, consumers int, h Handler) (*Subscription, error)
+func (m *MQ) Stats(topic string) (TopicStats, error)
 func (m *MQ) Shutdown(ctx context.Context) error
+```
+
+```go
+type TopicStats struct {
+	Name        string // 主题名
+	Partitions  int    // 分区数
+	Pending     int    // 待处理消息数（未被任意组消费）
+	Consumed    int64  // 累计已消费消息数
+	DLQPending  int    // 死信队列待处理数
+	DLQConsumed int64  // 死信队列累计已消费数
+}
 ```
 
 语义：
 
 - `CreateTopic`：显式创建并校验配置；重复创建返回 `ErrTopicExists`；
 - `Produce`：topic 不存在返回 `ErrTopicNotFound`；队列满按策略处理；
+  消息体超过 `MaxMessageBytes` 返回 `ErrMessageTooLarge`；
 - `Subscribe`：组内 `consumers` 为分区归属粒度（`p % consumers`），
   每个分区独立串行投递，实际并发度取决于分区数；同一 topic 可注册
   多个组，组间独立；
@@ -87,6 +101,7 @@ const (
 	CodeProcessTimeout  = "mqx_process_timeout"
 	CodeRetryExhausted  = "mqx_retry_exhausted"
 	CodeIDGenerateFailed = "mqx_id_generate_failed"
+	CodeMessageTooLarge  = "mqx_message_too_large"
 )
 ```
 

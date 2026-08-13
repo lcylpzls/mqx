@@ -56,6 +56,7 @@ func (l *loop) run() {
 			}
 			p.mu.Lock()
 			l.cursor++
+			p.delivered++
 			p.compactLocked()
 			// 排空后唤醒等待空间的生产者。
 			p.signalLocked()

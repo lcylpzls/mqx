@@ -42,6 +42,7 @@ func TestTopicConfigDefaults(t *testing.T) {
 	testx.RequireEqual(t, cfg.RetryDelay, defaultRetryDelay)
 	testx.RequireEqual(t, cfg.ProcessTimeout, defaultProcessTimeout)
 	testx.RequireEqual(t, cfg.Partitions, defaultPartitions)
+	testx.RequireEqual(t, cfg.MaxMessageBytes, defaultMaxMessageBytes)
 	testx.RequireEqual(t, cfg.DisableDLQ, false)
 	testx.RequireNoError(t, cfg.validate())
 
@@ -68,6 +69,10 @@ func TestTopicConfigDefaults(t *testing.T) {
 	bad6 := TopicConfig{QueueSize: 1, RetryMax: 1, RetryDelay: time.Second, ProcessTimeout: time.Second, Partitions: 0}
 	if err := bad6.validate(); err == nil {
 		t.Fatal("零分区应报错")
+	}
+	bad7 := TopicConfig{QueueSize: 1, RetryMax: 1, RetryDelay: time.Second, ProcessTimeout: time.Second, Partitions: 1, MaxMessageBytes: 0}
+	if err := bad7.validate(); err == nil {
+		t.Fatal("零消息大小上限应报错")
 	}
 }
 

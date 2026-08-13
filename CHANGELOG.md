@@ -2,6 +2,21 @@
 
 本项目遵循语义化版本（SemVer）。v1.0.0 之前允许破坏性变更。
 
+## [v0.2.0] - 2026-08-14
+
+### 新增
+
+- `TopicConfig.MaxMessageBytes`：消息体大小上限（默认 1 MiB），
+  超限投递返回 `ErrMessageTooLarge`；
+- `MQ.Stats(topic)`：主题统计快照（待处理、累计消费、死信水位），
+  供监控面板与排障使用；
+- 基准测试：单 key 串行与多 key 并行吞吐报告（docs/benchmark.md）。
+
+### 质量
+
+- 根包与 internal/core 覆盖率 100%；race / vet / staticcheck /
+  fuzz / govulncheck 全绿。
+
 ## [v0.1.0] - 2026-08-14
 
 ### 新增

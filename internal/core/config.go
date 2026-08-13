@@ -17,6 +17,7 @@ const (
 	defaultRetryDelay     = time.Second
 	defaultProcessTimeout = 30 * time.Second
 	defaultPartitions     = 16
+	defaultMaxMessageBytes = 1 << 20
 	messageIDBytes        = 16
 )
 
@@ -46,6 +47,8 @@ type TopicConfig struct {
 	ProcessTimeout time.Duration
 	// Partitions 分区数（默认 16，创建后固定；建议不小于最大消费者数）。
 	Partitions int
+	// MaxMessageBytes 消息体大小上限（默认 1 MiB）。
+	MaxMessageBytes int
 	// DisableDLQ 关闭死信队列（默认 false，即默认启用 DLQ）。
 	DisableDLQ bool
 }
@@ -66,6 +69,9 @@ func (c *TopicConfig) withDefaults() {
 	}
 	if c.Partitions <= 0 {
 		c.Partitions = defaultPartitions
+	}
+	if c.MaxMessageBytes <= 0 {
+		c.MaxMessageBytes = defaultMaxMessageBytes
 	}
 }
 
@@ -88,6 +94,9 @@ func (c *TopicConfig) validate() error {
 	}
 	if c.Partitions <= 0 {
 		return errInvalidConfig("分区数必须为正")
+	}
+	if c.MaxMessageBytes <= 0 {
+		return errInvalidConfig("消息大小上限必须为正")
 	}
 	return nil
 }

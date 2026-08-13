@@ -12,6 +12,7 @@ const (
 	CodeProcessTimeout   errx.Code = "mqx_process_timeout"
 	CodeRetryExhausted   errx.Code = "mqx_retry_exhausted"
 	CodeIDGenerateFailed errx.Code = "mqx_id_generate_failed"
+	CodeMessageTooLarge  errx.Code = "mqx_message_too_large"
 )
 
 // 预定义错误值，可用 errx.Is / errors.Is 判断。
@@ -24,4 +25,5 @@ var (
 	ErrProcessTimeout   = errx.New(errx.KindTimeout, CodeProcessTimeout, "消息处理超时")
 	ErrRetryExhausted   = errx.New(errx.KindQuotaExceeded, CodeRetryExhausted, "重试次数耗尽")
 	ErrIDGenerateFailed = errx.New(errx.KindUnavailable, CodeIDGenerateFailed, "消息 ID 生成失败")
+	ErrMessageTooLarge = errx.New(errx.KindInvalid, CodeMessageTooLarge, "消息体超出大小上限")
 )
