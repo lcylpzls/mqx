@@ -63,12 +63,19 @@ func run(ctx context.Context) error {
 	}
 	time.Sleep(300 * time.Millisecond)
 
-	fmt.Printf("已消费 %d 条：%v\n", len(received), received)
+	mu.Lock()
+	count := len(received)
+	snapshot := append([]string(nil), received...)
+	mu.Unlock()
+	fmt.Printf("已消费 %d 条：%v\n", count, snapshot)
 	fmt.Println("死信重放……")
 	if err := mq.Replay(ctx, "orders.write.dlq"); err != nil {
 		return err
 	}
 	time.Sleep(200 * time.Millisecond)
-	fmt.Printf("重放后共消费 %d 条\n", len(received))
+	mu.Lock()
+	count = len(received)
+	mu.Unlock()
+	fmt.Printf("重放后共消费 %d 条\n", count)
 	return nil
 }
