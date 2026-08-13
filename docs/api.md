@@ -1,6 +1,6 @@
 # mqx API 定版草案
 
-> 版本：v0.3.0 · 已实现签名与代码一致。
+> 版本：v0.4.0 · 已实现签名与代码一致。
 
 ## 1. 公开类型
 
@@ -30,7 +30,14 @@ type Message struct {
 	Body      []byte
 	Attempt   int    // 当前投递次数（1 起；进入 DLQ 后重置为 1）
 	EnqueueAt time.Time
+	Attrs     map[string]string // 消息元数据（可选）
 	Err       error  // 仅 DLQ 消息携带失败原因
+}
+
+type ProduceItem struct {
+	Key   string
+	Body  []byte
+	Attrs map[string]string
 }
 
 type Handler func(ctx context.Context, msg *Message) error
@@ -42,6 +49,7 @@ type Handler func(ctx context.Context, msg *Message) error
 func New(opts ...Option) (*MQ, error)
 func (m *MQ) CreateTopic(name string, cfg TopicConfig) (*Topic, error)
 func (m *MQ) Produce(ctx context.Context, topic, key string, body []byte) error
+func (m *MQ) ProduceBatch(ctx context.Context, topic string, items []ProduceItem) error
 func (m *MQ) Subscribe(ctx context.Context, topic, group string, consumers int, h Handler) (*Subscription, error)
 func (m *MQ) DeleteTopic(name string) error
 func (m *MQ) Stats(topic string) (TopicStats, error)
@@ -54,8 +62,10 @@ type TopicStats struct {
 	Partitions  int    // 分区数
 	Pending     int    // 待处理消息数（未被任意组消费）
 	Consumed    int64  // 累计已消费消息数
+	InFlight    int    // 当前投递中（含重试等待）的消息数
 	DLQPending  int    // 死信队列待处理数
 	DLQConsumed int64  // 死信队列累计已消费数
+	DLQInFlight int    // 死信队列当前投递中的消息数
 }
 ```
 
@@ -64,6 +74,7 @@ type TopicStats struct {
 - `CreateTopic`：显式创建并校验配置；重复创建返回 `ErrTopicExists`；
 - `Produce`：topic 不存在返回 `ErrTopicNotFound`；队列满按策略处理；
   消息体超过 `MaxMessageBytes` 返回 `ErrMessageTooLarge`；
+- `ProduceBatch`：按顺序逐条入队（非事务，中途失败时此前条目已入队）；
 - `Subscribe`：组内 `consumers` 为分区归属粒度（`p % consumers`），
   每个分区独立串行投递，实际并发度取决于分区数；同一 topic 可注册
   多个组，组间独立；

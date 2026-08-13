@@ -6,6 +6,23 @@
 
 ## [v0.3.0] - 2026-08-14
 
+## [v0.4.0] - 2026-08-14
+
+### 新增
+
+- `ProduceBatch`：批量投递（按顺序逐条入队，非事务）；
+- `Message.Attrs`：消息元数据（trace_id、来源服务等），入队与进入
+  DLQ 时深拷贝；
+- `TopicStats` 增加 `InFlight` / `DLQInFlight`：当前投递中（含重试
+  等待）的消息数，供并发水位监控。
+
+### 质量
+
+- 根包与 internal/core 覆盖率 100%；race / vet / staticcheck /
+  fuzz / govulncheck 全绿。
+
+## [v0.3.0] - 2026-08-14
+
 ### 新增
 
 - `Subscription.Pause/Resume`：暂停期间消息在分区内排队（在途消息

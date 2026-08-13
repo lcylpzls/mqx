@@ -38,6 +38,7 @@ type (
 	QueueFullPolicy = core.QueueFullPolicy
 	TopicConfig     = core.TopicConfig
 	Message         = core.Message
+	ProduceItem     = core.ProduceItem
 	Handler         = core.Handler
 	Metrics         = core.Metrics
 	TraceAttr       = core.TraceAttr

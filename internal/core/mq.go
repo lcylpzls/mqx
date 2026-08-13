@@ -107,6 +107,56 @@ func (m *MQ) Produce(ctx context.Context, topicName, key string, body []byte) er
 	return nil
 }
 
+// ProduceItem 是批量投递的单项。
+type ProduceItem struct {
+	// Key 业务键，决定分区与顺序归属。
+	Key string
+	// Body 消息体。
+	Body []byte
+	// Attrs 消息元数据（可选）。
+	Attrs map[string]string
+}
+
+// ProduceBatch 批量投递同一主题（按顺序逐条入队，非事务；
+// 中途失败时此前条目已入队）。
+func (m *MQ) ProduceBatch(ctx context.Context, topicName string, items []ProduceItem) error {
+	if len(items) == 0 {
+		return errInvalidConfig("批量投递条目不能为空")
+	}
+	t := m.topic(topicName)
+	if t == nil {
+		return ErrTopicNotFound
+	}
+	for _, item := range items {
+		if len(item.Body) > t.cfg.MaxMessageBytes {
+			return ErrMessageTooLarge
+		}
+		id, err := m.cfg.idgen(messageIDBytes)
+		if err != nil {
+			return errx.Wrap(err, errx.KindUnavailable, CodeIDGenerateFailed, "消息 ID 生成失败")
+		}
+		msg := &Message{
+			ID:        id,
+			Topic:     topicName,
+			Key:       item.Key,
+			Body:      append([]byte(nil), item.Body...),
+			Attempt:   1,
+			EnqueueAt: m.cfg.now(),
+			Attrs:     cloneAttrs(item.Attrs),
+		}
+		if err := t.partitionFor(item.Key).produce(ctx, msg); err != nil {
+			if errx.Is(err, CodeQueueFull) {
+				m.metricQueueFull(topicName)
+				m.logWarn("mqx：批量投递队列已满，投递被拒绝",
+					logx.String("mqx_topic", topicName))
+			}
+			return err
+		}
+		m.metricProduced(topicName)
+	}
+	return nil
+}
+
 // Subscribe 注册消费者组；组内按 key 静态归属，多组互相独立。
 func (m *MQ) Subscribe(_ context.Context, topicName, group string, consumers int, h Handler) (*Subscription, error) {
 	if group == "" {
@@ -188,12 +238,22 @@ func (m *MQ) Stats(topicName string) (TopicStats, error) {
 		p.mu.Lock()
 		stats.Pending += len(p.msgs) - p.minCursorLocked()
 		stats.Consumed += p.delivered
+		for l := range p.loops {
+			if l.inFlight >= 0 {
+				stats.InFlight++
+			}
+		}
 		p.mu.Unlock()
 	}
 	if t.dlq != nil {
 		t.dlq.mu.Lock()
 		stats.DLQPending = len(t.dlq.msgs) - t.dlq.start
 		stats.DLQConsumed = t.dlq.delivered
+		for l := range t.dlq.loops {
+			if l.inFlight >= 0 {
+				stats.DLQInFlight++
+			}
+		}
 		t.dlq.mu.Unlock()
 	}
 	return stats, nil
@@ -209,10 +269,14 @@ type TopicStats struct {
 	Pending int
 	// Consumed 已消费消息数（当前在内存中的累计游标）。
 	Consumed int64
+	// InFlight 当前投递中（含重试等待）的消息数。
+	InFlight int
 	// DLQPending 死信队列待处理数。
 	DLQPending int
 	// DLQConsumed 死信队列已消费数。
 	DLQConsumed int64
+	// DLQInFlight 死信队列当前投递中的消息数。
+	DLQInFlight int
 }
 
 // Shutdown 停止投递与消费并等待在途消息落定（幂等）。
@@ -263,6 +327,7 @@ func (m *MQ) subscribeTopic(t *Topic, group string, consumers int, h Handler) (*
 			partition: p,
 			group:     group,
 			handler:   h,
+			inFlight:  -1,
 			stopCh:    sub.stop,
 			pause:     sub.pause,
 		}

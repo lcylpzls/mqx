@@ -138,6 +138,8 @@ func TestReplayInFlightSkip(t *testing.T) {
 	})
 	testx.RequireNoError(t, err)
 	<-started
+	s, _ := m.Stats("orders")
+	testx.RequireEqual(t, s.DLQInFlight, 1)
 	testx.RequireNoError(t, m.Replay(context.Background(), "orders.dlq"))
 	testx.RequireEqual(t, dlqLen(m, "orders"), 1)
 	close(release)

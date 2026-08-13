@@ -166,6 +166,7 @@ func (l *dlqLoop) run() {
 			l.inFlight = l.cursor
 			d.mu.Unlock()
 			delivery := *msg
+			delivery.Attrs = cloneAttrs(msg.Attrs)
 			res, _ := deliverWithRetry(l.topic.mq, l.topic.cfg, l.group,
 				l.stopCh, &delivery, l.handler)
 			d.mu.Lock()

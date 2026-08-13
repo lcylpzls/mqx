@@ -28,6 +28,7 @@ type loop struct {
 	group     string
 	handler   Handler
 	cursor    int
+	inFlight  int
 	stopCh    chan struct{}
 	pause     *pauseState
 }
@@ -55,9 +56,11 @@ func (l *loop) run() {
 		p.mu.Lock()
 		if l.cursor < len(p.msgs) {
 			msg := p.msgs[l.cursor]
+			l.inFlight = l.cursor
 			p.mu.Unlock()
 			// 每组独立投递副本，避免多组并发修改 Attempt。
 			delivery := *msg
+			delivery.Attrs = cloneAttrs(msg.Attrs)
 			res, cause := deliverWithRetry(l.topic.mq, l.topic.cfg, l.group,
 				l.stopCh, &delivery, l.handler)
 			if res == outcomeAbandoned {
@@ -67,6 +70,7 @@ func (l *loop) run() {
 				l.topic.moveToDLQ(&delivery, cause)
 			}
 			p.mu.Lock()
+			l.inFlight = -1
 			l.cursor++
 			p.delivered++
 			p.compactLocked()

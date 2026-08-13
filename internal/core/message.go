@@ -16,6 +16,8 @@ type Message struct {
 	Attempt int
 	// EnqueueAt 首次入队时间。
 	EnqueueAt time.Time
+	// Attrs 消息元数据（可选，如 trace_id、来源服务）。
+	Attrs map[string]string
 	// Err 仅 DLQ 消息携带失败原因。
 	Err error
 }
@@ -24,8 +26,21 @@ type Message struct {
 func (m *Message) copyForDLQ(cause error) *Message {
 	cp := *m
 	cp.Body = append([]byte(nil), m.Body...)
+	cp.Attrs = cloneAttrs(m.Attrs)
 	// 进入死信队列后 Attempt 重置为 1，表示死信队列内的投递次数。
 	cp.Attempt = 1
 	cp.Err = cause
 	return &cp
+}
+
+// cloneAttrs 深拷贝消息元数据。
+func cloneAttrs(attrs map[string]string) map[string]string {
+	if len(attrs) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(attrs))
+	for k, v := range attrs {
+		out[k] = v
+	}
+	return out
 }
