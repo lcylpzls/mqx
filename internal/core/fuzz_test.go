@@ -45,6 +45,6 @@ func FuzzConfig(f *testing.F) {
 			Partitions:      partitions,
 		}
 		cfg.withDefaults()
-		_ = cfg.validate()
+		_ = cfg.Validate()
 	})
 }

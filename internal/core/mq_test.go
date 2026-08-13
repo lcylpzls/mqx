@@ -206,6 +206,7 @@ func TestSubscriptionStop(t *testing.T) {
 	})
 	testx.RequireNoError(t, err)
 	testx.RequireEqual(t, sub.Group(), "g")
+	testx.RequireEqual(t, sub.Consumers(), 1)
 	testx.RequireNoError(t, m.Produce(context.Background(), "orders", "k1", nil))
 	waitFor(t, 2*time.Second, func() bool { return consumed.Load() == 1 })
 	testx.RequireNoError(t, sub.Stop())

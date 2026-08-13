@@ -75,8 +75,8 @@ func (c *TopicConfig) withDefaults() {
 	}
 }
 
-// validate 校验配置并返回错误。
-func (c *TopicConfig) validate() error {
+// Validate 校验配置并返回错误（CreateTopic 前预检用）。
+func (c *TopicConfig) Validate() error {
 	if c.QueueSize <= 0 {
 		return errInvalidConfig("队列容量必须为正")
 	}

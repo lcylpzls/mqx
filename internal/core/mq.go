@@ -45,7 +45,7 @@ func (m *MQ) CreateTopic(name string, cfg TopicConfig) (*Topic, error) {
 		return nil, err
 	}
 	cfg.withDefaults()
-	if err := cfg.validate(); err != nil {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	m.mu.Lock()
@@ -345,6 +345,7 @@ func (m *MQ) subscribeTopic(t *Topic, group string, consumers int, h Handler) (*
 		t:     t,
 		topic: t.name,
 		group: group,
+		consumers: consumers,
 		stop:  make(chan struct{}),
 		pause: newPauseState(),
 	}
@@ -386,6 +387,7 @@ func (m *MQ) subscribeDLQ(t *Topic, dlqName, group string, consumers int, h Hand
 		t:     t,
 		topic: dlqName,
 		group: group,
+		consumers: consumers,
 		stop:  make(chan struct{}),
 		pause: newPauseState(),
 	}
@@ -431,6 +433,7 @@ type Subscription struct {
 	t        *Topic
 	topic    string
 	group    string
+	consumers int
 	stop     chan struct{}
 	stopOnce sync.Once
 	wg       sync.WaitGroup
@@ -440,6 +443,11 @@ type Subscription struct {
 // Group 返回消费者组名。
 func (s *Subscription) Group() string {
 	return s.group
+}
+
+// Consumers 返回该组配置的消费者数量。
+func (s *Subscription) Consumers() int {
+	return s.consumers
 }
 
 // Stop 停止该组消费（队列与消息保留，幂等）。

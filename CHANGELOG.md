@@ -10,6 +10,23 @@
 
 ## [v0.5.0] - 2026-08-14
 
+## [v0.6.0] - 2026-08-14
+
+### 新增
+
+- `TopicConfig.Validate()` 公开预检（CreateTopic 前可复用）；
+- `Subscription.Consumers()` 查询组内消费者数量；
+- 生态示例 `examples/ecosystem`：突发 1000 条增量按 key 串行落库，
+  断言无同条目并发写冲突（削峰 + 顺序保证演示）；
+- 架构文档补充与 eventx / jobx 的定位区别。
+
+### 质量
+
+- 根包与 internal/core 覆盖率 100%；race / vet / staticcheck /
+  fuzz / govulncheck 全绿。
+
+## [v0.5.0] - 2026-08-14
+
 ### 新增
 
 - `MQ.Topics()` / `MQ.Groups(topic)`：主题与消费者组枚举；

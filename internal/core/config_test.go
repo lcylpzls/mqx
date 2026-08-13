@@ -44,34 +44,34 @@ func TestTopicConfigDefaults(t *testing.T) {
 	testx.RequireEqual(t, cfg.Partitions, defaultPartitions)
 	testx.RequireEqual(t, cfg.MaxMessageBytes, defaultMaxMessageBytes)
 	testx.RequireEqual(t, cfg.DisableDLQ, false)
-	testx.RequireNoError(t, cfg.validate())
+	testx.RequireNoError(t, cfg.Validate())
 
 	bad := TopicConfig{QueueSize: 0}
-	if err := bad.validate(); err == nil {
+	if err := bad.Validate(); err == nil {
 		t.Fatal("队列容量非法应报错")
 	}
 	bad2 := TopicConfig{QueueSize: 1, QueueFullPolicy: QueueFullPolicy(99), RetryMax: 1, RetryDelay: time.Second, ProcessTimeout: time.Second, Partitions: 1}
-	if err := bad2.validate(); err == nil {
+	if err := bad2.Validate(); err == nil {
 		t.Fatal("非法策略应报错")
 	}
 	bad3 := TopicConfig{QueueSize: 1, RetryMax: -1, RetryDelay: time.Second, ProcessTimeout: time.Second, Partitions: 1}
-	if err := bad3.validate(); err == nil {
+	if err := bad3.Validate(); err == nil {
 		t.Fatal("负重试次数应报错")
 	}
 	bad4 := TopicConfig{QueueSize: 1, RetryMax: 1, RetryDelay: -1, ProcessTimeout: time.Second, Partitions: 1}
-	if err := bad4.validate(); err == nil {
+	if err := bad4.Validate(); err == nil {
 		t.Fatal("负退避应报错")
 	}
 	bad5 := TopicConfig{QueueSize: 1, RetryMax: 1, RetryDelay: time.Second, ProcessTimeout: 0, Partitions: 1}
-	if err := bad5.validate(); err == nil {
+	if err := bad5.Validate(); err == nil {
 		t.Fatal("零超时应报错")
 	}
 	bad6 := TopicConfig{QueueSize: 1, RetryMax: 1, RetryDelay: time.Second, ProcessTimeout: time.Second, Partitions: 0}
-	if err := bad6.validate(); err == nil {
+	if err := bad6.Validate(); err == nil {
 		t.Fatal("零分区应报错")
 	}
 	bad7 := TopicConfig{QueueSize: 1, RetryMax: 1, RetryDelay: time.Second, ProcessTimeout: time.Second, Partitions: 1, MaxMessageBytes: 0}
-	if err := bad7.validate(); err == nil {
+	if err := bad7.Validate(); err == nil {
 		t.Fatal("零消息大小上限应报错")
 	}
 }

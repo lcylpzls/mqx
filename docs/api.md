@@ -1,6 +1,6 @@
 # mqx API 定版草案
 
-> 版本：v0.5.0 · 已实现签名与代码一致。
+> 版本：v0.6.0 · 已实现签名与代码一致。
 
 ## 1. 公开类型
 
@@ -41,6 +41,7 @@ type ProduceItem struct {
 }
 
 type Handler func(ctx context.Context, msg *Message) error
+func (c TopicConfig) Validate() error // CreateTopic 前预检
 ```
 
 ## 2. 门面 API
@@ -91,6 +92,7 @@ type TopicStats struct {
 ```go
 type Subscription struct{ /* 不可直接构造 */ }
 func (s *Subscription) Group() string
+func (s *Subscription) Consumers() int // 组内配置的消费者数量
 func (s *Subscription) Stop() error // 停止该组消费（保留队列）
 func (s *Subscription) Pause()      // 暂停消费（在途消息继续，后续消息排队）
 func (s *Subscription) Resume()     // 恢复消费
