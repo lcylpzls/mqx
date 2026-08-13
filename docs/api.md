@@ -1,6 +1,6 @@
 # mqx API 定版草案
 
-> 版本：v0.4.0 · 已实现签名与代码一致。
+> 版本：v0.5.0 · 已实现签名与代码一致。
 
 ## 1. 公开类型
 
@@ -53,6 +53,8 @@ func (m *MQ) ProduceBatch(ctx context.Context, topic string, items []ProduceItem
 func (m *MQ) Subscribe(ctx context.Context, topic, group string, consumers int, h Handler) (*Subscription, error)
 func (m *MQ) DeleteTopic(name string) error
 func (m *MQ) Stats(topic string) (TopicStats, error)
+func (m *MQ) Topics() []string
+func (m *MQ) Groups(topic string) ([]string, error)
 func (m *MQ) Shutdown(ctx context.Context) error
 ```
 

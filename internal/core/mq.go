@@ -259,6 +259,36 @@ func (m *MQ) Stats(topicName string) (TopicStats, error) {
 	return stats, nil
 }
 
+// Topics 返回全部主题名（无序）。
+func (m *MQ) Topics() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]string, 0, len(m.topics))
+	for name := range m.topics {
+		out = append(out, name)
+	}
+	return out
+}
+
+// Groups 返回主题的全部消费者组名（无序）。
+func (m *MQ) Groups(topicName string) ([]string, error) {
+	t := m.topic(topicName)
+	if t == nil {
+		return nil, ErrTopicNotFound
+	}
+	t.subsMu.Lock()
+	defer t.subsMu.Unlock()
+	seen := make(map[string]struct{}, len(t.subs))
+	for s := range t.subs {
+		seen[s.group] = struct{}{}
+	}
+	out := make([]string, 0, len(seen))
+	for g := range seen {
+		out = append(out, g)
+	}
+	return out, nil
+}
+
 // TopicStats 是主题统计快照。
 type TopicStats struct {
 	// Name 主题名。

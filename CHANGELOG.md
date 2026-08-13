@@ -8,6 +8,21 @@
 
 ## [v0.4.0] - 2026-08-14
 
+## [v0.5.0] - 2026-08-14
+
+### 新增
+
+- `MQ.Topics()` / `MQ.Groups(topic)`：主题与消费者组枚举；
+- 并发压力测试：4 key × 500 条并发生产，断言不丢且每 key 顺序不乱；
+- `docs/errors.md` 错误码手册。
+
+### 质量
+
+- 根包与 internal/core 覆盖率 100%；race / vet / staticcheck /
+  fuzz / govulncheck 全绿。
+
+## [v0.4.0] - 2026-08-14
+
 ### 新增
 
 - `ProduceBatch`：批量投递（按顺序逐条入队，非事务）；

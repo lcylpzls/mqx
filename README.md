@@ -3,7 +3,7 @@
 自研内置通用消息队列：生产消费、削峰、按业务键顺序执行，
 与 errx / logx / tracex / metricsx / idgenx 家族生态打通。
 
-> 当前状态：**v0.4.0**。
+> 当前状态：**v0.5.0**。
 
 ## 定位
 
@@ -36,6 +36,7 @@ mqx **不是分布式消息中间件**，不解决跨进程消息传递；它解
 - 订阅暂停/恢复（`Pause`/`Resume`，维护窗口与削峰）与主题删除（`DeleteTopic`）；
 - 批量投递（`ProduceBatch`）、消息元数据（`Message.Attrs`）与
   in-flight 统计；
+- 主题/消费者组枚举（`Topics` / `Groups`）；
 - 消息体 `[]byte`，序列化由业务负责，库保持零第三方依赖。
 
 ## 明确不做（v0.1）
@@ -71,6 +72,7 @@ _, _ = mq.Subscribe(context.Background(), "orders.write", "writer", func(ctx con
 - [docs/architecture.md](docs/architecture.md) — 架构详解（顺序模型/状态机/削峰/重试）
 - [docs/api.md](docs/api.md) — API 定版草案（签名与语义）
 - [docs/benchmark.md](docs/benchmark.md) — 基准测试报告
+- [docs/errors.md](docs/errors.md) — 错误码手册
 
 ## License
 
