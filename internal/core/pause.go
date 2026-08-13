@@ -31,14 +31,13 @@ func (p *pauseState) Resume() {
 	p.paused.Store(false)
 }
 
-// isPaused 返回是否暂停。
-func (p *pauseState) isPaused() bool {
-	return p.paused.Load()
-}
-
-// channel 返回当前恢复信号通道（需在暂停状态下捕获后等待）。
-func (p *pauseState) channel() chan struct{} {
+// waitChannel 原子地检查暂停并捕获恢复通道：
+// 返回 paused=true 时，捕获的通道保证会被后续 Resume 关闭（无丢失唤醒）。
+func (p *pauseState) waitChannel() (chan struct{}, bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.resume
+	if !p.paused.Load() {
+		return nil, false
+	}
+	return p.resume, true
 }

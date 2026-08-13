@@ -122,6 +122,34 @@ func TestPauseStopAndShutdown(t *testing.T) {
 	_ = sub
 }
 
+// TestPauseResumeStress 反复暂停/恢复并发投递，验证无丢失唤醒。
+func TestPauseResumeStress(t *testing.T) {
+	cfg := smallTopic()
+	cfg.QueueSize = 1024
+	m := newTestMQ(t)
+	_, err := m.CreateTopic("orders", cfg)
+	testx.RequireNoError(t, err)
+	var consumed atomic.Int32
+	sub, err := m.Subscribe(context.Background(), "orders", "g", 1, func(context.Context, *Message) error {
+		consumed.Add(1)
+		return nil
+	})
+	testx.RequireNoError(t, err)
+	done := make(chan struct{})
+	go func() {
+		for i := 0; i < 200; i++ {
+			_ = m.Produce(context.Background(), "orders", "k", nil)
+		}
+		close(done)
+	}()
+	for i := 0; i < 50; i++ {
+		sub.Pause()
+		sub.Resume()
+	}
+	<-done
+	waitFor(t, 5*time.Second, func() bool { return consumed.Load() == 200 })
+}
+
 // TestDeleteTopic 覆盖主题删除。
 func TestDeleteTopic(t *testing.T) {
 	m := newTestMQ(t)

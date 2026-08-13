@@ -42,8 +42,11 @@ func (l *loop) run() {
 		p.mu.Unlock()
 	}()
 	for {
-		if l.pause != nil && l.pause.isPaused() {
-			ch := l.pause.channel()
+		if l.pause != nil {
+			ch, paused := l.pause.waitChannel()
+			if !paused {
+				goto process
+			}
 			select {
 			case <-ch:
 			case <-l.stopCh:
@@ -53,6 +56,7 @@ func (l *loop) run() {
 			}
 			continue
 		}
+	process:
 		p.mu.Lock()
 		if l.cursor < len(p.msgs) {
 			msg := p.msgs[l.cursor]

@@ -149,8 +149,11 @@ func (l *dlqLoop) run() {
 		d.mu.Unlock()
 	}()
 	for {
-		if l.pause != nil && l.pause.isPaused() {
-			ch := l.pause.channel()
+		if l.pause != nil {
+			ch, paused := l.pause.waitChannel()
+			if !paused {
+				goto process
+			}
 			select {
 			case <-ch:
 			case <-l.stopCh:
@@ -160,6 +163,7 @@ func (l *dlqLoop) run() {
 			}
 			continue
 		}
+	process:
 		d.mu.Lock()
 		if l.cursor < len(d.msgs) {
 			msg := d.msgs[l.cursor]
