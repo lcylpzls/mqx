@@ -46,6 +46,7 @@ type (
 	TraceAttr       = core.TraceAttr
 	TraceHook       = core.TraceHook
 	Store           = core.Store
+	FileStoreOption = core.FileStoreOption
 	Config          = core.Config
 	Option          = core.Option
 	MQ              = core.MQ
@@ -85,9 +86,14 @@ func WithStore(s Store) Option {
 	return core.WithStore(s)
 }
 
+// WithSync 开启文件存储同步模式（每次写入后 fsync）。
+func WithSync() FileStoreOption {
+	return core.WithSync()
+}
+
 // NewFileStore 创建基于追加日志的进程级文件存储。
-func NewFileStore(path string) (Store, error) {
-	return core.NewFileStore(path)
+func NewFileStore(path string, opts ...FileStoreOption) (Store, error) {
+	return core.NewFileStore(path, opts...)
 }
 
 // WithClock 注入时间源（测试用）。

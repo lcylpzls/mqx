@@ -16,6 +16,21 @@
 
 ## [v0.8.0] - 2026-08-14
 
+## [v0.9.0] - 2026-08-14
+
+### 新增
+
+- `NewFileStore(path, WithSync())`：文件存储同步模式，每次写入后
+  fsync，断电不丢已确认写入（吞吐较低）；
+- 同步失败按 `CodeStoreFailed` 返回/记录。
+
+### 质量
+
+- 根包与 internal/core 覆盖率 100%；race / vet / staticcheck /
+  fuzz / govulncheck 全绿。
+
+## [v0.8.0] - 2026-08-14
+
 ### 新增
 
 - 死信队列持久化闭环：进入 DLQ 时落盘（存储标识 `dlq:<id>` 与主队列

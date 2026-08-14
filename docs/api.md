@@ -1,6 +1,6 @@
 # mqx API 定版草案
 
-> 版本：v0.7.0 · 已实现签名与代码一致。
+> 版本：v0.9.0 · 已实现签名与代码一致。
 
 ## 1. 公开类型
 
@@ -66,7 +66,8 @@ type Store interface {
 	DeleteMessage(ctx context.Context, id string) error
 	LoadMessages(ctx context.Context) ([]*Message, error)
 }
-func NewFileStore(path string) (Store, error)
+func NewFileStore(path string, opts ...FileStoreOption) (Store, error)
+func WithSync() FileStoreOption // 每次写入后 fsync（断电不丢已确认写入）
 ```
 
 ```go
@@ -97,6 +98,7 @@ type TopicStats struct {
   无 Store 时 no-op。
 - `NewFileStore`：追加日志式进程级持久化（正常退出/重启不丢；
   非 WAL 级崩溃一致性，断电可能丢失最近写入）。
+- `WithSync`：开启同步模式，每次写入后 fsync，吞吐较低但断电不丢。
 - `Pause/Resume`：暂停期间消息在分区内排队，多组互相独立；
 - `DeleteTopic`：停止该主题全部订阅并移除路由，之后投递/订阅/
   统计/重放均返回 `ErrTopicNotFound`。

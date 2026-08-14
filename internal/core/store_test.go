@@ -124,6 +124,55 @@ func TestFileStoreErrors(t *testing.T) {
 	}
 }
 
+// TestFileStoreSync 覆盖同步模式保存与恢复。
+func TestFileStoreSync(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mq.jsonl")
+	fs, err := NewFileStore(path, WithSync())
+	testx.RequireNoError(t, err)
+	ctx := context.Background()
+	testx.RequireNoError(t, fs.SaveMessage(ctx, &Message{ID: "a", Topic: "t", Key: "k"}))
+	loaded, err := fs.LoadMessages(ctx)
+	testx.RequireNoError(t, err)
+	testx.RequireEqual(t, len(loaded), 1)
+	testx.RequireNoError(t, fs.Close())
+
+	fs2, err := NewFileStore(path)
+	testx.RequireNoError(t, err)
+	defer func() { _ = fs2.Close() }()
+	loaded, err = fs2.LoadMessages(ctx)
+	testx.RequireNoError(t, err)
+	testx.RequireEqual(t, len(loaded), 1)
+}
+
+// TestFileStoreSyncFailure 覆盖同步失败分支。
+func TestFileStoreSyncFailure(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "mq.jsonl")
+	fs, err := NewFileStore(path, WithSync())
+	testx.RequireNoError(t, err)
+	defer func() { _ = fs.Close() }()
+	restore := storeSeams()
+	storeSync = func(*os.File) error { return errors.New("同步失败") }
+	if err := fs.SaveMessage(ctx, &Message{ID: "a", Topic: "t", Key: "k"}); !errx.Is(err, CodeStoreFailed) {
+		t.Fatalf("同步失败应报错：%v", err)
+	}
+	restore()
+
+	path2 := filepath.Join(t.TempDir(), "mq2.jsonl")
+	fs2, err := NewFileStore(path2, WithSync())
+	testx.RequireNoError(t, err)
+	defer func() { _ = fs2.Close() }()
+	testx.RequireNoError(t, fs2.SaveMessage(ctx, &Message{ID: "a", Topic: "t", Key: "k"}))
+	testx.RequireNoError(t, fs2.SaveMessage(ctx, &Message{ID: "b", Topic: "t", Key: "k"}))
+	testx.RequireNoError(t, fs2.DeleteMessage(ctx, "a"))
+	restore = storeSeams()
+	storeSync = func(*os.File) error { return errors.New("同步失败") }
+	if _, err := fs2.LoadMessages(ctx); !errx.Is(err, CodeStoreFailed) {
+		t.Fatalf("压实同步失败应报错：%v", err)
+	}
+	restore()
+}
+
 // TestMQWithStorePersistRecover 覆盖落盘、恢复与确认后删除。
 func TestMQWithStorePersistRecover(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "mq.jsonl")
@@ -500,8 +549,8 @@ func TestCompactSeamErrors(t *testing.T) {
 
 // storeSeams 返回当前存储接缝快照。
 func storeSeams() func() {
-	om, ou, os_, ow, of, ot := storeMarshal, storeUnmarshal, storeSeek, storeWrite, storeFlush, storeTruncate
+	om, ou, os_, ow, of, ot, oy := storeMarshal, storeUnmarshal, storeSeek, storeWrite, storeFlush, storeTruncate, storeSync
 	return func() {
-		storeMarshal, storeUnmarshal, storeSeek, storeWrite, storeFlush, storeTruncate = om, ou, os_, ow, of, ot
+		storeMarshal, storeUnmarshal, storeSeek, storeWrite, storeFlush, storeTruncate, storeSync = om, ou, os_, ow, of, ot, oy
 	}
 }

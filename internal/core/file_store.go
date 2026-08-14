@@ -20,6 +20,7 @@ var (
 	storeWrite    = func(w *bufio.Writer, p []byte) (int, error) { return w.Write(p) }
 	storeFlush    = func(w *bufio.Writer) error { return w.Flush() }
 	storeTruncate = func(f *os.File, n int64) error { return f.Truncate(n) }
+	storeSync     = func(f *os.File) error { return f.Sync() }
 	storeNewScanner = func(r io.Reader) *bufio.Scanner {
 		sc := bufio.NewScanner(r)
 		sc.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
@@ -48,18 +49,38 @@ type fileStore struct {
 	path string
 	f    *os.File
 	seq  int64
+	sync bool
+}
+
+// FileStoreOption 修改文件存储配置。
+type FileStoreOption func(*fileStoreConfig)
+
+// fileStoreConfig 是文件存储配置。
+type fileStoreConfig struct {
+	sync bool
+}
+
+// WithSync 开启同步模式：每次写入后 fsync，断电不丢已确认写入（吞吐较低）。
+func WithSync() FileStoreOption {
+	return func(c *fileStoreConfig) { c.sync = true }
 }
 
 // NewFileStore 创建文件存储（不存在则创建）。
-func NewFileStore(path string) (*fileStore, error) {
+func NewFileStore(path string, opts ...FileStoreOption) (*fileStore, error) {
 	if path == "" {
 		return nil, errInvalidConfig("存储文件路径不能为空")
+	}
+	cfg := fileStoreConfig{}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&cfg)
+		}
 	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, errx.Wrap(err, errx.KindUnavailable, CodeStoreFailed, "打开存储文件失败")
 	}
-	s := &fileStore{path: path, f: f}
+	s := &fileStore{path: path, f: f, sync: cfg.sync}
 	if _, err := s.loadLocked(); err != nil {
 		f.Close()
 		return nil, err
@@ -123,6 +144,11 @@ func (s *fileStore) appendLocked(rec storeRecord) error {
 	}
 	if err := storeFlush(w); err != nil {
 		return errx.Wrap(err, errx.KindUnavailable, CodeStoreFailed, "存储记录刷盘失败")
+	}
+	if s.sync {
+		if err := storeSync(s.f); err != nil {
+			return errx.Wrap(err, errx.KindUnavailable, CodeStoreFailed, "存储记录同步失败")
+		}
 	}
 	return nil
 }
@@ -225,6 +251,11 @@ func (s *fileStore) compactLocked(deleted map[string]struct{}, recs []storeRecor
 	}
 	if err := storeFlush(w); err != nil {
 		return errx.Wrap(err, errx.KindUnavailable, CodeStoreFailed, "存储记录刷盘失败")
+	}
+	if s.sync {
+		if err := storeSync(s.f); err != nil {
+			return errx.Wrap(err, errx.KindUnavailable, CodeStoreFailed, "存储记录同步失败")
+		}
 	}
 	return nil
 }
