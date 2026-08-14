@@ -14,6 +14,7 @@
 | `mqx_retry_exhausted` | 重试耗尽进入死信 |
 | `mqx_id_generate_failed` | 消息 ID 生成失败 |
 | `mqx_message_too_large` | 消息体超过 `MaxMessageBytes` |
+| `mqx_store_failed` | 消息存储操作失败（落盘/删除/恢复） |
 
 ## 匹配示例
 

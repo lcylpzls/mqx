@@ -99,10 +99,12 @@ Produced → Queued（分区 FIFO）→ Delivering（in-flight）
 
 ## 8. 持久化（Store 预留）
 
-- v0.1 默认内存实现：进程重启消息丢失；
-- `Store` 接口抽象消息体、位点与 in-flight 状态；
-- 启用 Store 后的最低承诺：**已 ack 不丢、未 ack 可重投**；
-- 具体落盘实现（WAL/数据库）为后续版本，不改变公开 API。
+- v0.7 起 `Store` 正式接入：入队前同步落盘（失败则投递失败），
+  消息被全部消费者组越过（retire）时删除，`Recover` 恢复未删除消息；
+- 默认内存实现（不配置 Store）：进程重启消息丢失；
+- 内置 `NewFileStore`：追加日志 + 墓碑 + 自动压实，进程级持久化；
+- 最低承诺：**已 ack 不丢、未 ack 可重投**；
+- 恢复顺序：`CreateTopic`（含同名同分区配置）→ `Recover` → 订阅消费。
 
 ## 9. 并发与生命周期
 

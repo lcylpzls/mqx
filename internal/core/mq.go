@@ -94,6 +94,11 @@ func (m *MQ) Produce(ctx context.Context, topicName, key string, body []byte) er
 		Attempt:   1,
 		EnqueueAt: m.cfg.now(),
 	}
+	if m.cfg.store != nil {
+		if err := m.cfg.store.SaveMessage(ctx, msg); err != nil {
+			return errx.Wrap(err, errx.KindUnavailable, CodeStoreFailed, "消息落盘失败")
+		}
+	}
 	if err := t.partitionFor(key).produce(ctx, msg); err != nil {
 		if errx.Is(err, CodeQueueFull) {
 			m.metricQueueFull(topicName)
@@ -143,6 +148,11 @@ func (m *MQ) ProduceBatch(ctx context.Context, topicName string, items []Produce
 			Attempt:   1,
 			EnqueueAt: m.cfg.now(),
 			Attrs:     cloneAttrs(item.Attrs),
+		}
+		if m.cfg.store != nil {
+			if err := m.cfg.store.SaveMessage(ctx, msg); err != nil {
+				return errx.Wrap(err, errx.KindUnavailable, CodeStoreFailed, "消息落盘失败")
+			}
 		}
 		if err := t.partitionFor(item.Key).produce(ctx, msg); err != nil {
 			if errx.Is(err, CodeQueueFull) {
@@ -287,6 +297,29 @@ func (m *MQ) Groups(topicName string) ([]string, error) {
 		out = append(out, g)
 	}
 	return out, nil
+}
+
+// Recover 从 Store 恢复全部未删除消息（需先 CreateTopic）。
+// 无 Store 时为 no-op；未知主题或加载失败返回错误。
+func (m *MQ) Recover(ctx context.Context) error {
+	if m.cfg.store == nil {
+		return nil
+	}
+	msgs, err := m.cfg.store.LoadMessages(ctx)
+	if err != nil {
+		return errx.Wrap(err, errx.KindUnavailable, CodeStoreFailed, "消息恢复加载失败")
+	}
+	for _, msg := range msgs {
+		t := m.topic(msg.Topic)
+		if t == nil {
+			return errx.NewCode(CodeStoreFailed, "存储中存在未创建主题："+msg.Topic)
+		}
+		if err := t.partitionFor(msg.Key).produce(ctx, msg); err != nil {
+			return errx.Wrap(err, errx.KindUnavailable, CodeStoreFailed, "消息恢复入队失败")
+		}
+	}
+	m.logInfo("mqx：消息恢复完成", logx.Int("mqx_recovered", len(msgs)))
+	return nil
 }
 
 // TopicStats 是主题统计快照。

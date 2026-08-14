@@ -3,7 +3,7 @@
 自研内置通用消息队列：生产消费、削峰、按业务键顺序执行，
 与 errx / logx / tracex / metricsx / idgenx 家族生态打通。
 
-> 当前状态：**v0.6.0**。
+> 当前状态：**v0.7.0**。
 
 ## 定位
 
@@ -38,6 +38,8 @@ mqx **不是分布式消息中间件**，不解决跨进程消息传递；它解
   in-flight 统计；
 - 主题/消费者组枚举（`Topics` / `Groups`）；
 - 配置预检（`TopicConfig.Validate`）与消费者数查询（`Subscription.Consumers`）；
+- 消息持久化：`Store` 接口正式接入 + `NewFileStore` 文件存储 +
+  `Recover` 崩溃恢复（已 ack 不丢、未 ack 可重投）；
 
 ## 适用场景
 
@@ -45,6 +47,7 @@ mqx **不是分布式消息中间件**，不解决跨进程消息传递；它解
 - 同一条目串行化：按订单号/用户 ID/SKU 分区，避免数据库同条目并发写
   导致的锁冲突与事务重试（见 `examples/ecosystem`）；
 - 可靠异步管道：at-least-once + 重试 + 死信，配合业务幂等键。
+- 进程重启恢复：启用 `NewFileStore` 后，未确认消息重启可恢复。
 - 消息体 `[]byte`，序列化由业务负责，库保持零第三方依赖。
 
 ## 明确不做（v0.1）

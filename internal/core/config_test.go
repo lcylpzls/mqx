@@ -107,7 +107,7 @@ func TestOptions(t *testing.T) {
 	testx.RequireNoError(t, WithLogger(testLogger())(&cfg))
 	testx.RequireNoError(t, WithMetrics(Metrics{})(&cfg))
 	testx.RequireNoError(t, WithTraceHook(nil)(&cfg))
-	testx.RequireNoError(t, WithStore(struct{}{})(&cfg))
+	testx.RequireNoError(t, WithStore(&fakeStore{})(&cfg))
 	if err := WithStore(nil)(&cfg); err == nil {
 		t.Fatal("nil Store 应报错")
 	}

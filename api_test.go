@@ -2,6 +2,7 @@ package mqx_test
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -9,9 +10,18 @@ import (
 	"github.com/lcylpzls/mqx"
 )
 
+// rootStore 是根包测试用的最小存储桩。
+type rootStore struct{}
+
+func (rootStore) SaveMessage(context.Context, *mqx.Message) error { return nil }
+func (rootStore) DeleteMessage(context.Context, string) error     { return nil }
+func (rootStore) LoadMessages(context.Context) ([]*mqx.Message, error) {
+	return nil, nil
+}
+
 // TestPublicAPI 黑盒冒烟测试：覆盖根包全部转发函数、类型别名与常量。
 func TestPublicAPI(t *testing.T) {
-	if mqx.Version != "v0.6.0" {
+	if mqx.Version != "v0.7.0" {
 		t.Fatalf("Version 不符：%s", mqx.Version)
 	}
 	_ = []mqx.QueueFullPolicy{mqx.QueueFullBlock, mqx.QueueFullDrop, mqx.QueueFullReject}
@@ -31,14 +41,21 @@ func TestPublicAPI(t *testing.T) {
 	var _ mqx.Option
 	_ = mqx.CodeInvalidConfig
 	_ = mqx.CodeMessageTooLarge
+	_ = mqx.CodeStoreFailed
 	_ = mqx.ErrTopicNotFound
 	_ = mqx.ErrMessageTooLarge
+	_ = mqx.ErrStoreFailed
 
+	fs, err := mqx.NewFileStore(filepath.Join(t.TempDir(), "mq.jsonl"))
+	if err != nil {
+		t.Fatalf("NewFileStore 失败：%v", err)
+	}
+	_ = fs.(interface{ Close() error }).Close()
 	mq, err := mqx.New(
 		mqx.WithLogger(nil),
 		mqx.WithMetrics(mqx.Metrics{}),
 		mqx.WithTraceHook(nil),
-		mqx.WithStore(struct{}{}),
+		mqx.WithStore(rootStore{}),
 		mqx.WithClock(time.Now),
 		mqx.WithIDGen(func(int) (string, error) { return "id", nil }),
 	)
@@ -59,6 +76,9 @@ func TestPublicAPI(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("CreateTopic 失败：%v", err)
+	}
+	if err := mq.Recover(context.Background()); err != nil {
+		t.Fatalf("Recover 失败：%v", err)
 	}
 	if err := mq.Produce(context.Background(), "orders", "k", []byte("x")); err != nil {
 		t.Fatalf("Produce 失败：%v", err)

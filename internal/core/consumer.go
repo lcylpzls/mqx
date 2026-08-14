@@ -77,10 +77,20 @@ func (l *loop) run() {
 			l.inFlight = -1
 			l.cursor++
 			p.delivered++
+			retired := l.cursor-1 < p.minCursorLocked()
+			retiredID := msg.ID
 			p.compactLocked()
 			// 排空后唤醒等待空间的生产者。
 			p.signalLocked()
 			p.mu.Unlock()
+			if retired && l.topic.mq.cfg.store != nil {
+				if err := l.topic.mq.cfg.store.DeleteMessage(context.Background(), retiredID); err != nil {
+					l.topic.mq.logWarn("mqx：消息删除落盘失败",
+						logx.String("mqx_topic", l.topic.name),
+						logx.String("mqx_id", retiredID),
+						logx.Any("error", err))
+				}
+			}
 			continue
 		}
 		ch := p.notify

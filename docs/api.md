@@ -1,6 +1,6 @@
 # mqx API 定版草案
 
-> 版本：v0.6.0 · 已实现签名与代码一致。
+> 版本：v0.7.0 · 已实现签名与代码一致。
 
 ## 1. 公开类型
 
@@ -56,7 +56,17 @@ func (m *MQ) DeleteTopic(name string) error
 func (m *MQ) Stats(topic string) (TopicStats, error)
 func (m *MQ) Topics() []string
 func (m *MQ) Groups(topic string) ([]string, error)
+func (m *MQ) Recover(ctx context.Context) error
 func (m *MQ) Shutdown(ctx context.Context) error
+```
+
+```go
+type Store interface {
+	SaveMessage(ctx context.Context, msg *Message) error
+	DeleteMessage(ctx context.Context, id string) error
+	LoadMessages(ctx context.Context) ([]*Message, error)
+}
+func NewFileStore(path string) (Store, error)
 ```
 
 ```go
@@ -83,6 +93,10 @@ type TopicStats struct {
   多个组，组间独立；
 - handler 返回 nil = 确认；error = 重试；超时未返回 = 重投；
 - `Shutdown`：幂等，停止投递与消费并等待 in-flight 落定。
+- `Recover`：从 Store 恢复全部未删除消息（需先 CreateTopic）；
+  无 Store 时 no-op。
+- `NewFileStore`：追加日志式进程级持久化（正常退出/重启不丢；
+  非 WAL 级崩溃一致性，断电可能丢失最近写入）。
 - `Pause/Resume`：暂停期间消息在分区内排队，多组互相独立；
 - `DeleteTopic`：停止该主题全部订阅并移除路由，之后投递/订阅/
   统计/重放均返回 `ErrTopicNotFound`。
@@ -123,6 +137,7 @@ const (
 	CodeRetryExhausted  = "mqx_retry_exhausted"
 	CodeIDGenerateFailed = "mqx_id_generate_failed"
 	CodeMessageTooLarge  = "mqx_message_too_large"
+	CodeStoreFailed      = "mqx_store_failed"
 )
 ```
 

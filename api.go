@@ -20,6 +20,7 @@ const (
 	CodeRetryExhausted   = core.CodeRetryExhausted
 	CodeIDGenerateFailed = core.CodeIDGenerateFailed
 	CodeMessageTooLarge  = core.CodeMessageTooLarge
+	CodeStoreFailed      = core.CodeStoreFailed
 )
 
 var (
@@ -32,6 +33,7 @@ var (
 	ErrRetryExhausted   = core.ErrRetryExhausted
 	ErrIDGenerateFailed = core.ErrIDGenerateFailed
 	ErrMessageTooLarge  = core.ErrMessageTooLarge
+	ErrStoreFailed      = core.ErrStoreFailed
 )
 
 type (
@@ -78,9 +80,14 @@ func WithTraceHook(h TraceHook) Option {
 	return core.WithTraceHook(h)
 }
 
-// WithStore 注入持久化 Store（v0.1 仅校验非 nil，行为与内存实现一致）。
+// WithStore 注入持久化 Store。
 func WithStore(s Store) Option {
 	return core.WithStore(s)
+}
+
+// NewFileStore 创建基于追加日志的进程级文件存储。
+func NewFileStore(path string) (Store, error) {
+	return core.NewFileStore(path)
 }
 
 // WithClock 注入时间源（测试用）。
