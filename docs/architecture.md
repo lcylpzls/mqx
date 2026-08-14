@@ -103,6 +103,8 @@ Produced → Queued（分区 FIFO）→ Delivering（in-flight）
   消息被全部消费者组越过（retire）时删除，`Recover` 恢复未删除消息；
 - 默认内存实现（不配置 Store）：进程重启消息丢失；
 - 内置 `NewFileStore`：追加日志 + 墓碑 + 自动压实，进程级持久化；
+- 死信队列同样落盘：进入 DLQ 时保存（存储标识与主队列隔离），
+  DLQ 消费后删除，崩溃后可恢复死信；
 - 最低承诺：**已 ack 不丢、未 ack 可重投**；
 - 恢复顺序：`CreateTopic`（含同名同分区配置）→ `Recover` → 订阅消费。
 

@@ -21,7 +21,7 @@ func (rootStore) LoadMessages(context.Context) ([]*mqx.Message, error) {
 
 // TestPublicAPI 黑盒冒烟测试：覆盖根包全部转发函数、类型别名与常量。
 func TestPublicAPI(t *testing.T) {
-	if mqx.Version != "v0.7.0" {
+	if mqx.Version != "v0.8.0" {
 		t.Fatalf("Version 不符：%s", mqx.Version)
 	}
 	_ = []mqx.QueueFullPolicy{mqx.QueueFullBlock, mqx.QueueFullDrop, mqx.QueueFullReject}

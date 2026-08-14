@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -254,6 +255,119 @@ func TestRecoverQueueFull(t *testing.T) {
 	testx.RequireNoError(t, err)
 	if err := m.Recover(context.Background()); !errx.Is(err, CodeStoreFailed) {
 		t.Fatalf("恢复入队失败应报错：%v", err)
+	}
+}
+
+// TestDLQPersistRecover 覆盖死信落盘、恢复与删除。
+func TestDLQPersistRecover(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mq.jsonl")
+	store1, err := NewFileStore(path)
+	testx.RequireNoError(t, err)
+	m1, err := New(WithStore(store1))
+	testx.RequireNoError(t, err)
+	cfg := smallTopic()
+	cfg.QueueSize = 32
+	_, err = m1.CreateTopic("orders", cfg)
+	testx.RequireNoError(t, err)
+	_, err = m1.Subscribe(context.Background(), "orders", "g", 1, func(context.Context, *Message) error {
+		return errors.New("失败")
+	})
+	testx.RequireNoError(t, err)
+	testx.RequireNoError(t, m1.Produce(context.Background(), "orders", "k", []byte("x")))
+	waitFor(t, 2*time.Second, func() bool { return dlqLen(m1, "orders") == 1 })
+	testx.RequireNoError(t, m1.Shutdown(context.Background()))
+	testx.RequireNoError(t, store1.Close())
+
+	store2, err := NewFileStore(path)
+	testx.RequireNoError(t, err)
+	defer func() { _ = store2.Close() }()
+	m2, err := New(WithStore(store2))
+	testx.RequireNoError(t, err)
+	defer func() { _ = m2.Shutdown(context.Background()) }()
+	_, err = m2.CreateTopic("orders", cfg)
+	testx.RequireNoError(t, err)
+	testx.RequireNoError(t, m2.Recover(context.Background()))
+	waitFor(t, 2*time.Second, func() bool { return dlqLen(m2, "orders") == 1 })
+	idCh := make(chan string, 1)
+	_, err = m2.Subscribe(context.Background(), "orders.dlq", "dg", 1, func(_ context.Context, msg *Message) error {
+		idCh <- msg.ID
+		return nil
+	})
+	testx.RequireNoError(t, err)
+	gotID := <-idCh
+	testx.RequireTrue(t, gotID != "")
+	// 死信消费后存储删除：重开恢复应为空。
+	time.Sleep(50 * time.Millisecond)
+	store3, err := NewFileStore(path)
+	testx.RequireNoError(t, err)
+	loaded, err := store3.LoadMessages(context.Background())
+	testx.RequireNoError(t, err)
+	testx.RequireEqual(t, len(loaded), 0)
+	testx.RequireNoError(t, store3.Close())
+}
+
+// TestDLQStoreSaveFailure 覆盖死信落盘失败仍保留内存副本。
+func TestDLQStoreSaveFailure(t *testing.T) {
+	fs := &dlqFailStore{}
+	m, err := New(WithStore(fs))
+	testx.RequireNoError(t, err)
+	defer func() { _ = m.Shutdown(context.Background()) }()
+	_, err = m.CreateTopic("orders", smallTopic())
+	testx.RequireNoError(t, err)
+	_, err = m.Subscribe(context.Background(), "orders", "g", 1, func(context.Context, *Message) error {
+		return errors.New("失败")
+	})
+	testx.RequireNoError(t, err)
+	testx.RequireNoError(t, m.Produce(context.Background(), "orders", "k", nil))
+	waitFor(t, 2*time.Second, func() bool { return dlqLen(m, "orders") == 1 })
+}
+
+// dlqFailStore 仅在死信落盘时失败。
+type dlqFailStore struct {
+	fakeStore
+}
+
+func (f *dlqFailStore) SaveMessage(_ context.Context, msg *Message) error {
+	if strings.HasSuffix(msg.Topic, dlqSuffix) {
+		return errors.New("落盘失败")
+	}
+	return nil
+}
+
+// TestDLQStoreDeleteFailure 覆盖死信删除失败仍继续消费。
+func TestDLQStoreDeleteFailure(t *testing.T) {
+	fs := &fakeStore{deleteErr: errx.New(errx.KindUnavailable, CodeStoreFailed, "删除失败")}
+	m, err := New(WithStore(fs))
+	testx.RequireNoError(t, err)
+	defer func() { _ = m.Shutdown(context.Background()) }()
+	_, err = m.CreateTopic("orders", smallTopic())
+	testx.RequireNoError(t, err)
+	_, err = m.Subscribe(context.Background(), "orders", "g", 1, func(context.Context, *Message) error {
+		return errors.New("失败")
+	})
+	testx.RequireNoError(t, err)
+	testx.RequireNoError(t, m.Produce(context.Background(), "orders", "k", nil))
+	waitFor(t, 2*time.Second, func() bool { return dlqLen(m, "orders") == 1 })
+	var consumed atomic.Int32
+	_, err = m.Subscribe(context.Background(), "orders.dlq", "dg", 1, func(context.Context, *Message) error {
+		consumed.Add(1)
+		return nil
+	})
+	testx.RequireNoError(t, err)
+	waitFor(t, 2*time.Second, func() bool { return consumed.Load() == 1 })
+	fs.mu.Lock()
+	testx.RequireEqual(t, len(fs.deleted), 2) // 主队列 + 死信各一次
+	fs.mu.Unlock()
+}
+
+// TestRecoverUnknownDLQ 覆盖恢复时未知死信主题。
+func TestRecoverUnknownDLQ(t *testing.T) {
+	fs := &fakeStore{loaded: []*Message{{ID: "dlq:a", Topic: "missing.dlq", Key: "k"}}}
+	m, err := New(WithStore(fs))
+	testx.RequireNoError(t, err)
+	defer func() { _ = m.Shutdown(context.Background()) }()
+	if err := m.Recover(context.Background()); !errx.Is(err, CodeStoreFailed) {
+		t.Fatalf("未知死信主题应报错：%v", err)
 	}
 }
 

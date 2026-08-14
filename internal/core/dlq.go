@@ -189,8 +189,18 @@ func (l *dlqLoop) run() {
 			}
 			l.cursor++
 			d.delivered++
+			retired := l.cursor-1 < d.minCursorLocked()
+			retiredID := delivery.ID
 			d.compactLocked()
 			d.mu.Unlock()
+			if retired && l.topic.mq.cfg.store != nil {
+				if err := l.topic.mq.cfg.store.DeleteMessage(context.Background(), dlqStoreID(retiredID)); err != nil {
+					l.topic.mq.logWarn("mqx：死信删除落盘失败",
+						logx.String("mqx_topic", l.topic.name),
+						logx.String("mqx_id", retiredID),
+						logx.Any("error", err))
+				}
+			}
 			continue
 		}
 		ch := d.notify

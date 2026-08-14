@@ -310,6 +310,17 @@ func (m *MQ) Recover(ctx context.Context) error {
 		return errx.Wrap(err, errx.KindUnavailable, CodeStoreFailed, "消息恢复加载失败")
 	}
 	for _, msg := range msgs {
+		if strings.HasSuffix(msg.Topic, dlqSuffix) {
+			base := strings.TrimSuffix(msg.Topic, dlqSuffix)
+			t := m.topic(base)
+			if t == nil || t.dlq == nil || t.cfg.DisableDLQ {
+				return errx.NewCode(CodeStoreFailed, "存储中存在未创建的死信主题："+msg.Topic)
+			}
+			msg.ID = fromDLQStoreID(msg.ID)
+			msg.Topic = base
+			t.dlq.enqueue(msg)
+			continue
+		}
 		t := m.topic(msg.Topic)
 		if t == nil {
 			return errx.NewCode(CodeStoreFailed, "存储中存在未创建主题："+msg.Topic)
@@ -320,6 +331,16 @@ func (m *MQ) Recover(ctx context.Context) error {
 	}
 	m.logInfo("mqx：消息恢复完成", logx.Int("mqx_recovered", len(msgs)))
 	return nil
+}
+
+// dlqStoreID 返回死信消息的存储标识（避免与主队列同 ID 冲突）。
+func dlqStoreID(id string) string {
+	return "dlq:" + id
+}
+
+// fromDLQStoreID 还原死信消息的原始 ID。
+func fromDLQStoreID(id string) string {
+	return strings.TrimPrefix(id, "dlq:")
 }
 
 // TopicStats 是主题统计快照。
@@ -457,7 +478,19 @@ func (t *Topic) moveToDLQ(msg *Message, cause error) {
 	if t.cfg.DisableDLQ || t.dlq == nil {
 		return
 	}
-	t.dlq.enqueue(msg.copyForDLQ(cause))
+	cp := msg.copyForDLQ(cause)
+	if t.mq.cfg.store != nil {
+		storeMsg := *cp
+		storeMsg.ID = dlqStoreID(cp.ID)
+		storeMsg.Topic = t.name + dlqSuffix
+		if err := t.mq.cfg.store.SaveMessage(context.Background(), &storeMsg); err != nil {
+			t.mq.logError("mqx：死信落盘失败，仅保留内存副本",
+				logx.String("mqx_topic", t.name),
+				logx.String("mqx_id", cp.ID),
+				logx.Any("error", err))
+		}
+	}
+	t.dlq.enqueue(cp)
 }
 
 // Subscription 是一次消费者组订阅。

@@ -3,7 +3,7 @@
 自研内置通用消息队列：生产消费、削峰、按业务键顺序执行，
 与 errx / logx / tracex / metricsx / idgenx 家族生态打通。
 
-> 当前状态：**v0.7.0**。
+> 当前状态：**v0.8.0**。
 
 ## 定位
 
@@ -40,6 +40,7 @@ mqx **不是分布式消息中间件**，不解决跨进程消息传递；它解
 - 配置预检（`TopicConfig.Validate`）与消费者数查询（`Subscription.Consumers`）；
 - 消息持久化：`Store` 接口正式接入 + `NewFileStore` 文件存储 +
   `Recover` 崩溃恢复（已 ack 不丢、未 ack 可重投）；
+- 死信队列同步落盘：DLQ 消息随主队列一起持久化、可恢复、消费后删除；
 
 ## 适用场景
 
